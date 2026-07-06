@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Free Invoice Generator</title>
+<meta name="description" content="A free, private, in-browser invoice generator. Create, search, filter and print professional invoices — no signup, no server.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1C2B23;
+    --paper:#F6F4EE;
+    --paper-raised:#FFFFFF;
+    --green:#2F5D50;
+    --green-dark:#203F37;
+    --gold:#B8872B;
+    --line:#D9D4C7;
+    --line-soft:#E8E5DB;
+    --red:#A13D2E;
+    --muted:#6B6558;
+    --shadow: 0 1px 2px rgba(28,43,35,.06), 0 6px 20px rgba(28,43,35,.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  a{color:inherit;}
+
+  /* ---------- topbar ---------- */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 32px;border-bottom:1px solid var(--line);
+    background:var(--paper);position:sticky;top:0;z-index:20;
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{
+    width:34px;height:34px;border-radius:8px;background:var(--green);
+    display:flex;align-items:center;justify-content:center;color:#fff;
+    font-family:'Space Grotesk';font-weight:700;font-size:16px;transform:rotate(-4deg);
+    box-shadow:var(--shadow);
+  }
+  .brand-name{font-weight:700;font-size:19px;letter-spacing:-.01em;}
+  .brand-tag{font-size:12px;color:var(--muted);margin-top:-2px;}
+  .tabs{display:flex;gap:4px;background:var(--line-soft);padding:4px;border-radius:10px;}
+  .tab-btn{
+    border:none;background:transparent;padding:9px 18px;border-radius:7px;
+    font-family:'Inter';font-weight:600;font-size:14px;color:var(--muted);cursor:pointer;
+    transition:all .15s ease;
+  }
+  .tab-btn.active{background:var(--paper-raised);color:var(--ink);box-shadow:var(--shadow);}
+  .free-badge{
+    font-size:11px;font-weight:600;color:var(--gold);border:1px solid var(--gold);
+    padding:4px 9px;border-radius:20px;letter-spacing:.03em;text-transform:uppercase;
+  }
+
+  .wrap{max-width:1180px;margin:0 auto;padding:32px;}
+  .view{display:none;}
+  .view.active{display:block;animation:fadein .25s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+  /* ---------- editor layout ---------- */
+  .editor-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:28px;align-items:start;}
+  @media (max-width:980px){.editor-grid{grid-template-columns:1fr;}}
+
+  .card{
+    background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;
+    padding:26px;box-shadow:var(--shadow);
+  }
+  .card + .card{margin-top:20px;}
+  .card h3{margin:0 0 16px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px;font-weight:500;}
+  .field input,.field textarea,.field select{
+    width:100%;border:1px solid var(--line);background:var(--paper);
+    border-radius:8px;padding:9px 11px;font-family:'Inter';font-size:14px;color:var(--ink);
+    transition:border-color .15s;
+  }
+  .field input:focus,.field textarea:focus,.field select:focus{
+    outline:none;border-color:var(--green);background:#fff;
+  }
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+
+  /* line items editor */
+  .items-head,.item-row{
+    display:grid;grid-template-columns:2.4fr .7fr .9fr .9fr 32px;gap:10px;align-items:center;
+  }
+  .items-head{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:0 2px 8px;font-weight:600;}
+  .item-row{margin-bottom:8px;}
+  .item-row input{padding:8px 10px;font-size:13.5px;}
+  .icon-btn{
+    border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:16px;
+    width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  }
+  .icon-btn:hover{background:var(--line-soft);color:var(--red);}
+  .add-line{
+    border:1px dashed var(--line);background:transparent;color:var(--green);font-weight:600;
+    font-size:13px;padding:9px;border-radius:8px;width:100%;cursor:pointer;margin-top:4px;
+  }
+  .add-line:hover{background:#EEF3F0;}
+
+  .btn{
+    border:none;border-radius:9px;padding:11px 18px;font-family:'Inter';font-weight:600;
+    font-size:14px;cursor:pointer;transition:transform .1s ease, background .15s;
+  }
+  .btn:active{transform:scale(.98);}
+  .btn-primary{background:var(--green);color:#fff;}
+  .btn-primary:hover{background:var(--green-dark);}
+  .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
+  .btn-ghost:hover{background:var(--line-soft);}
+  .btn-danger{background:transparent;color:var(--red);border:1px solid #E3C9C3;}
+  .btn-row{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+
+  .totals{border-top:1px dashed var(--line);margin-top:16px;padding-top:14px;}
+  .totals-line{display:flex;justify-content:space-between;font-size:14px;padding:5px 0;color:var(--muted);}
+  .totals-line.grand{color:var(--ink);font-weight:700;font-size:19px;border-top:1px solid var(--line);margin-top:6px;padding-top:12px;}
+  .totals-line input{width:80px;text-align:right;padding:4px 6px;font-size:13px;}
+
+  /* ---------- perforated divider (signature element) ---------- */
+  .perforation{
+    position:relative;height:0;margin:22px 0;border-top:2px dashed var(--line);
+  }
+  .perforation::before,.perforation::after{
+    content:'';position:absolute;top:-7px;width:14px;height:14px;border-radius:50%;
+    background:var(--paper);border:2px dashed var(--line);
+  }
+  .perforation::before{left:-40px;}
+  .perforation::after{right:-40px;}
+
+  /* ---------- invoice preview (designed document look) ---------- */
+  .preview-sticky{position:sticky;top:90px;}
+  .preview-label{
+    font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600;
+    margin-bottom:10px;display:flex;align-items:center;gap:8px;
+  }
+  .preview-label::before{
+    content:'';width:7px;height:7px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 0 3px #E4EEE9;
+  }
+  .sheet-backdrop{
+    background:linear-gradient(160deg,#EDEAE0 0%, #E3DFD1 100%);
+    border-radius:20px;padding:22px;
+  }
+  .invoice-sheet{
+    background:var(--paper-raised);border-radius:14px;
+    box-shadow:0 2px 4px rgba(28,43,35,.08), 0 20px 40px -12px rgba(28,43,35,.22);
+    position:relative;overflow:hidden;
+  }
+
+  /* header band */
+  .inv-header{
+    background:linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
+    padding:28px 32px 20px;position:relative;
+    display:flex;justify-content:space-between;align-items:flex-start;gap:16px;
+  }
+  .inv-header-left{display:flex;gap:13px;align-items:center;}
+  .inv-avatar{
+    width:44px;height:44px;border-radius:11px;background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.3);color:#fff;font-family:'Space Grotesk';font-weight:700;
+    font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    letter-spacing:.02em;
+  }
+  .inv-from-name{font-family:'Space Grotesk';font-weight:700;font-size:18px;color:#fff;}
+  .inv-from-sub{font-size:12px;color:rgba(255,255,255,.72);margin-top:2px;}
+  .inv-header-right{text-align:right;}
+  .inv-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--gold);font-weight:700;}
+  .inv-header-right .num{font-family:'IBM Plex Mono';font-weight:600;font-size:16px;color:#fff;margin-top:3px;}
+  .inv-header-right .date{font-size:11.5px;color:rgba(255,255,255,.68);margin-top:3px;}
+
+  /* seam / tear between header band and body, callback to the perforation motif */
+  .inv-seam{position:relative;height:0;border-top:2px dashed rgba(255,255,255,.4);margin-top:18px;}
+  .inv-seam::before,.inv-seam::after{
+    content:'';position:absolute;top:-7px;width:14px;height:14px;border-radius:50%;
+    background:var(--paper-raised);
+  }
+  .inv-seam::before{left:-2px;}
+  .inv-seam::after{right:-2px;}
+
+  .inv-body{padding:30px 32px 28px;position:relative;}
+
+  .stamp{
+    position:absolute;top:-20px;right:32px;background:var(--paper-raised);
+    font-family:'Space Grotesk';font-weight:700;font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.08em;padding:7px 14px;border-radius:30px;
+    transform:rotate(-6deg);border:2px double currentColor;box-shadow:0 3px 8px rgba(28,43,35,.1);
+  }
+  .stamp.paid{color:var(--green);}
+  .stamp.unpaid{color:var(--gold);}
+  .stamp.overdue{color:var(--red);}
+
+  .inv-parties{margin-top:6px;font-size:13.5px;}
+  .party-box{
+    background:#F1F3F0;border-left:3px solid var(--green);border-radius:8px;
+    padding:14px 16px;display:inline-block;min-width:220px;
+  }
+  .inv-parties .label{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:6px;font-weight:700;}
+  .inv-parties b{font-weight:700;font-size:14.5px;}
+  .muted-line{color:var(--muted);font-size:12.5px;margin-top:2px;}
+
+  .inv-table-wrap{border-radius:10px;overflow:hidden;border:1px solid var(--line-soft);margin-top:22px;}
+  table.inv-table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  table.inv-table thead th{
+    text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+    background:#F1F3F0;padding:10px 14px;font-weight:700;
+  }
+  table.inv-table td{padding:11px 14px;border-top:1px solid var(--line-soft);}
+  table.inv-table tbody tr:nth-child(even){background:#FAFAF7;}
+  table.inv-table td:last-child,table.inv-table th:last-child{text-align:right;font-family:'IBM Plex Mono';}
+  table.inv-table td:nth-child(2),table.inv-table th:nth-child(2){text-align:center;}
+
+  .inv-totals-box{display:flex;justify-content:flex-end;margin-top:18px;}
+  .inv-totals{width:250px;background:#F1F3F0;border-radius:10px;padding:14px 18px;}
+  .inv-totals div{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:var(--muted);}
+  .inv-totals div.grand{
+    color:var(--green-dark);font-weight:700;font-size:19px;font-family:'IBM Plex Mono';
+    border-top:1px solid var(--line);margin-top:6px;padding-top:10px;
+  }
+  .inv-notes{margin-top:24px;font-size:12.5px;color:var(--muted);font-style:italic;border-top:1px dashed var(--line);padding-top:14px;}
+  .inv-footer-tag{margin-top:20px;text-align:center;font-size:10.5px;color:var(--line);letter-spacing:.03em;}
+  .inv-footer-tag span{color:var(--gold);font-weight:600;}
+
+  /* ---------- library (all invoices) view ---------- */
+  .toolbar{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
+  .search-box{
+    flex:1;min-width:220px;position:relative;
+  }
+  .search-box input{
+    width:100%;padding:11px 14px 11px 38px;border:1px solid var(--line);border-radius:9px;
+    background:var(--paper-raised);font-family:'Inter';font-size:14px;
+  }
+  .search-box::before{
+    content:'⌕';position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:17px;
+  }
+  .filter-select{
+    border:1px solid var(--line);border-radius:9px;padding:11px 14px;background:var(--paper-raised);
+    font-family:'Inter';font-size:14px;color:var(--ink);cursor:pointer;
+  }
+  .stat-strip{display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap;}
+  .stat{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:14px 18px;flex:1;min-width:140px;box-shadow:var(--shadow);}
+  .stat .n{font-family:'IBM Plex Mono';font-size:22px;font-weight:600;}
+  .stat .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
+
+  .lib-table{width:100%;border-collapse:collapse;background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);}
+  .lib-table thead th{
+    text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+    padding:13px 16px;background:var(--line-soft);cursor:pointer;user-select:none;font-weight:600;white-space:nowrap;
+  }
+  .lib-table thead th:hover{color:var(--ink);}
+  .lib-table tbody tr{cursor:pointer;transition:background .1s;}
+  .lib-table tbody tr:hover{background:#F1F0E9;}
+  .lib-table tbody tr:not(:last-child){border-bottom:1px solid var(--line-soft);}
+  .lib-table td{padding:14px 16px;font-size:14px;}
+  .lib-table td.num{font-family:'IBM Plex Mono';}
+  .badge{
+    display:inline-block;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;
+    text-transform:uppercase;letter-spacing:.03em;
+  }
+  .badge.paid{background:#E4EEE9;color:var(--green);}
+  .badge.unpaid{background:#F6EBD6;color:var(--gold);}
+  .badge.overdue{background:#F5E1DC;color:var(--red);}
+  .empty-state{text-align:center;padding:60px 20px;color:var(--muted);}
+  .empty-state .glyph{font-size:40px;margin-bottom:12px;}
+  .row-actions{display:flex;gap:6px;justify-content:flex-end;}
+
+  /* ---------- ad slot ---------- */
+  .ad-slot{
+    margin:26px 0;padding:14px;border:1px dashed var(--line);border-radius:12px;
+    text-align:center;font-size:11.5px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;
+  }
+
+  footer{text-align:center;padding:30px;font-size:12.5px;color:var(--muted);}
+
+  /* ---------- print ---------- */
+  @media print{
+    .topbar,.editor-grid > div:first-child,.toolbar,.stat-strip,footer,.ad-slot,.no-print{display:none !important;}
+    body{background:#fff;}
+    .wrap{padding:0;max-width:none;}
+    .editor-grid{display:block;}
+    .sheet-backdrop{background:none;padding:0;border-radius:0;}
+    .invoice-sheet{box-shadow:none;border:none;border-radius:0;}
+    .preview-sticky{position:static;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar no-print">
+  <div class="brand">
+    <div class="brand-mark">L</div>
+    <div>
+      <div class="brand-name">Ledger</div>
+      <div class="brand-tag">free invoice generator</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" data-view="editor" onclick="switchView('editor')">New Invoice</button>
+    <button class="tab-btn" data-view="library" onclick="switchView('library')">All Invoices</button>
+  </div>
+  <span class="free-badge">100% Free · Private</span>
+</div>
+
+<div class="wrap">
+
+  <!-- ================= EDITOR VIEW ================= -->
+  <div class="view active" id="view-editor">
+    <div class="editor-grid">
+
+      <!-- left: form -->
+      <div>
+        <div class="card">
+          <h3>From</h3>
+          <div class="row2">
+            <div class="field"><label>Your name / business</label><input id="f-fromName" placeholder="Aster Studio Co."></div>
+            <div class="field"><label>Email</label><input id="f-fromEmail" placeholder="hello@asterstudio.co"></div>
+          </div>
+          <div class="field"><label>Address</label><input id="f-fromAddr" placeholder="221 Baker Street, Lahore"></div>
+        </div>
+
+        <div class="card">
+          <h3>Bill to</h3>
+          <div class="row2">
+            <div class="field"><label>Client name</label><input id="f-toName" placeholder="Northwind Traders"></div>
+            <div class="field"><label>Client email</label><input id="f-toEmail" placeholder="accounts@northwind.com"></div>
+          </div>
+          <div class="field"><label>Client address</label><input id="f-toAddr" placeholder="Client's billing address"></div>
+        </div>
+
+        <div class="card">
+          <h3>Invoice details</h3>
+          <div class="row3">
+            <div class="field"><label>Invoice #</label><input id="f-number" class="mono"></div>
+            <div class="field"><label>Issue date</label><input id="f-issue" type="date"></div>
+            <div class="field"><label>Due date</label><input id="f-due" type="date"></div>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select id="f-status">
+              <option value="unpaid">Unpaid</option>
+              <option value="paid">Paid</option>
+              <option value="overdue">Overdue</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Line items</h3>
+          <div class="items-head"><div>Description</div><div>Qty</div><div>Rate</div><div>Amount</div><div></div></div>
+          <div id="items-container"></div>
+          <button class="add-line" onclick="addItem()">+ Add line item</button>
+
+          <div class="totals">
+            <div class="totals-line"><span>Subtotal</span><span class="mono" id="show-subtotal">0.00</span></div>
+            <div class="totals-line"><span>Tax (%)</span><input id="f-tax" type="number" value="0" min="0" class="mono"></div>
+            <div class="totals-line"><span>Discount (%)</span><input id="f-discount" type="number" value="0" min="0" class="mono"></div>
+            <div class="totals-line"><span>Currency</span><input id="f-currency" value="$" class="mono" style="width:80px;text-align:right;"></div>
+            <div class="totals-line grand"><span>Total</span><span class="mono" id="show-total">0.00</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Notes</h3>
+          <textarea id="f-notes" rows="3" placeholder="Thank you for your business. Payment due within 14 days."></textarea>
+        </div>
+
+        <div class="btn-row no-print">
+          <button class="btn btn-primary" onclick="saveInvoice()">💾 Save invoice</button>
+          <button class="btn btn-ghost" onclick="window.print()">🖨️ Print / Export PDF</button>
+          <button class="btn btn-ghost" onclick="newInvoice()">↺ Clear form</button>
+        </div>
+
+        <div class="ad-slot no-print">
+          Ad space — PropellerAds unit goes here (see setup notes in README)
+        </div>
+      </div>
+
+      <!-- right: live preview -->
+      <div class="preview-sticky">
+        <div class="preview-label no-print">Live preview</div>
+        <div class="sheet-backdrop">
+        <div class="invoice-sheet" id="invoice-preview">
+
+          <div class="inv-header">
+            <div class="inv-header-left">
+              <div class="inv-avatar" id="p-avatar">YB</div>
+              <div>
+                <div class="inv-from-name" id="p-fromName">Your Business</div>
+                <div class="inv-from-sub" id="p-fromAddr"></div>
+                <div class="inv-from-sub" id="p-fromEmail"></div>
+              </div>
+            </div>
+            <div class="inv-header-right">
+              <div class="inv-label">Invoice</div>
+              <div class="num" id="p-number">INV-0001</div>
+              <div class="date" id="p-dates">—</div>
+            </div>
+            <div class="inv-seam"></div>
+          </div>
+
+          <div class="inv-body">
+            <span class="stamp unpaid" id="p-stamp">Unpaid</span>
+
+            <div class="inv-parties">
+              <div class="party-box">
+                <div class="label">Bill to</div>
+                <div><b id="p-toName">Client name</b></div>
+                <div id="p-toAddr" class="muted-line"></div>
+                <div id="p-toEmail" class="muted-line"></div>
+              </div>
+            </div>
+
+            <div class="inv-table-wrap">
+              <table class="inv-table">
+                <thead><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+                <tbody id="p-items"></tbody>
+              </table>
+            </div>
+
+            <div class="inv-totals-box">
+              <div class="inv-totals" id="p-totals"></div>
+            </div>
+
+            <div class="inv-notes" id="p-notes"></div>
+
+            <div class="inv-footer-tag">Made with <span>Ledger</span> — free invoice generator</div>
+          </div>
+
+        </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= LIBRARY VIEW ================= -->
+  <div class="view" id="view-library">
+    <div class="stat-strip" id="stat-strip"></div>
+
+    <div class="toolbar">
+      <div class="search-box"><input id="search-input" placeholder="Search by client, invoice #, or amount..." oninput="renderLibrary()"></div>
+      <select class="filter-select" id="filter-status" onchange="renderLibrary()">
+        <option value="all">All statuses</option>
+        <option value="paid">Paid</option>
+        <option value="unpaid">Unpaid</option>
+        <option value="overdue">Overdue</option>
+      </select>
+      <select class="filter-select" id="sort-by" onchange="renderLibrary()">
+        <option value="date-desc">Newest first</option>
+        <option value="date-asc">Oldest first</option>
+        <option value="amount-desc">Highest amount</option>
+        <option value="amount-asc">Lowest amount</option>
+        <option value="client-az">Client A–Z</option>
+      </select>
+    </div>
+
+    <table class="lib-table">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Client</th>
+          <th>Issue date</th>
+          <th>Due date</th>
+          <th>Status</th>
+          <th style="text-align:right;">Amount</th>
+          <th class="no-print"></th>
+        </tr>
+      </thead>
+      <tbody id="lib-body"></tbody>
+    </table>
+    <div id="lib-empty"></div>
+
+    <div class="ad-slot no-print">
+      Ad space — PropellerAds unit goes here (see setup notes in README)
+    </div>
+  </div>
+
+</div>
+
+<footer class="no-print">Ledger — a free, private, browser-only invoice tool. Your data never leaves your device.</footer>
+
+<script>
+/* ---------------- state ---------------- */
+let items = [];
+let editingId = null;
+
+function uid(){ return 'inv_' + Math.random().toString(36).slice(2,9); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function fmt(n){ return (isNaN(n)?0:n).toFixed(2); }
+
+function loadAll(){
+  try{
+    const raw = localStorage.getItem('ledger_invoices');
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function saveAll(list){
+  try{ localStorage.setItem('ledger_invoices', JSON.stringify(list)); }
+  catch(e){ console.warn('Could not persist invoices:', e); }
+}
+
+/* ---------------- view switching ---------------- */
+function switchView(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
+  if(name==='library') renderLibrary();
+}
+
+/* ---------------- line items ---------------- */
+function addItem(desc='', qty=1, rate=0){
+  const id = uid();
+  items.push({id, desc, qty, rate});
+  renderItems();
+}
+function removeItem(id){
+  items = items.filter(i=>i.id!==id);
+  renderItems();
+}
+function renderItems(){
+  const c = document.getElementById('items-container');
+  c.innerHTML = '';
+  items.forEach(it=>{
+    const row = document.createElement('div');
+    row.className='item-row';
+    row.innerHTML = `
+      <input value="${escapeAttr(it.desc)}" placeholder="Design consultation" oninput="updateItem('${it.id}','desc',this.value)">
+      <input type="number" min="0" value="${it.qty}" oninput="updateItem('${it.id}','qty',this.value)">
+      <input type="number" min="0" step="0.01" value="${it.rate}" oninput="updateItem('${it.id}','rate',this.value)">
+      <div class="mono" style="text-align:right;padding-right:4px;">${fmt(it.qty*it.rate)}</div>
+      <button class="icon-btn" onclick="removeItem('${it.id}')" title="Remove line">✕</button>`;
+    c.appendChild(row);
+  });
+  updatePreview();
+}
+function updateItem(id, field, value){
+  const it = items.find(i=>i.id===id);
+  if(!it) return;
+  it[field] = (field==='qty'||field==='rate') ? parseFloat(value)||0 : value;
+  renderItems();
+}
+function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+function escapeHtml(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function initials(name){
+  const words = (name||'').trim().split(/\s+/).filter(Boolean);
+  if(words.length===0) return 'YB';
+  if(words.length===1) return words[0].slice(0,2).toUpperCase();
+  return (words[0][0]+words[1][0]).toUpperCase();
+}
+
+/* ---------------- totals ---------------- */
+function computeTotals(){
+  const subtotal = items.reduce((s,i)=>s+i.qty*i.rate,0);
+  const tax = parseFloat(document.getElementById('f-tax').value)||0;
+  const discount = parseFloat(document.getElementById('f-discount').value)||0;
+  const afterDiscount = subtotal - subtotal*(discount/100);
+  const total = afterDiscount + afterDiscount*(tax/100);
+  return {subtotal, tax, discount, total};
+}
+
+/* ---------------- preview ---------------- */
+function updatePreview(){
+  const g = id => document.getElementById(id).value;
+  const fromName = g('f-fromName')||'Your Business';
+  document.getElementById('p-fromName').textContent = fromName;
+  document.getElementById('p-fromAddr').textContent = g('f-fromAddr');
+  document.getElementById('p-fromEmail').textContent = g('f-fromEmail');
+  document.getElementById('p-avatar').textContent = initials(fromName);
+  document.getElementById('p-toName').textContent = g('f-toName')||'Client name';
+  document.getElementById('p-toAddr').textContent = g('f-toAddr');
+  document.getElementById('p-toEmail').textContent = g('f-toEmail');
+  document.getElementById('p-number').textContent = g('f-number')||'INV-0001';
+
+  const issue = g('f-issue'), due = g('f-due');
+  document.getElementById('p-dates').textContent =
+    (issue? 'Issued '+issue : '') + (due? '  ·  Due '+due : '');
+
+  const status = g('f-status');
+  const stampEl = document.getElementById('p-stamp');
+  stampEl.textContent = status.charAt(0).toUpperCase()+status.slice(1);
+  stampEl.className = 'stamp ' + status;
+
+  const cur = g('f-currency')||'$';
+  const tbody = document.getElementById('p-items');
+  tbody.innerHTML = items.length ? items.map(i=>`
+    <tr><td>${escapeHtml(i.desc)||'—'}</td><td>${i.qty}</td><td>${cur}${fmt(i.rate)}</td><td>${cur}${fmt(i.qty*i.rate)}</td></tr>
+  `).join('') : `<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:18px 0;">No line items yet</td></tr>`;
+
+  const t = computeTotals();
+  document.getElementById('show-subtotal').textContent = fmt(t.subtotal);
+  document.getElementById('show-total').textContent = fmt(t.total);
+  document.getElementById('p-totals').innerHTML = `
+    <div><span>Subtotal</span><span>${cur}${fmt(t.subtotal)}</span></div>
+    <div><span>Discount (${t.discount}%)</span><span>-${cur}${fmt(t.subtotal*(t.discount/100))}</span></div>
+    <div><span>Tax (${t.tax}%)</span><span>+${cur}${fmt((t.subtotal-t.subtotal*(t.discount/100))*(t.tax/100))}</span></div>
+    <div class="grand"><span>Total</span><span>${cur}${fmt(t.total)}</span></div>`;
+
+  document.getElementById('p-notes').textContent = g('f-notes');
+}
+
+document.getElementById('view-editor').addEventListener('input', updatePreview);
+
+/* ---------------- save / load / new ---------------- */
+function newInvoice(){
+  editingId = null;
+  items = [];
+  ['f-fromName','f-fromEmail','f-fromAddr','f-toName','f-toEmail','f-toAddr','f-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-number').value = nextInvoiceNumber();
+  document.getElementById('f-issue').value = todayISO();
+  document.getElementById('f-due').value = '';
+  document.getElementById('f-status').value = 'unpaid';
+  document.getElementById('f-tax').value = 0;
+  document.getElementById('f-discount').value = 0;
+  document.getElementById('f-currency').value = '$';
+  addItem('', 1, 0);
+}
+function nextInvoiceNumber(){
+  const all = loadAll();
+  const n = all.length + 1;
+  return 'INV-' + String(n).padStart(4,'0');
+}
+function saveInvoice(){
+  const g = id => document.getElementById(id).value;
+  if(!g('f-toName').trim()){
+    alert('Add a client name before saving.');
+    return;
+  }
+  const t = computeTotals();
+  const record = {
+    id: editingId || uid(),
+    number: g('f-number')||'INV-0001',
+    fromName: g('f-fromName'), fromEmail: g('f-fromEmail'), fromAddr: g('f-fromAddr'),
+    toName: g('f-toName'), toEmail: g('f-toEmail'), toAddr: g('f-toAddr'),
+    issue: g('f-issue'), due: g('f-due'), status: g('f-status'),
+    currency: g('f-currency')||'$', tax: t.tax, discount: t.discount,
+    items: JSON.parse(JSON.stringify(items)),
+    total: t.total, subtotal: t.subtotal,
+    notes: g('f-notes'),
+    savedAt: new Date().toISOString()
+  };
+  let all = loadAll();
+  if(editingId){
+    all = all.map(r=>r.id===editingId? record : r);
+  } else {
+    all.push(record);
+    editingId = record.id;
+  }
+  saveAll(all);
+  alert('Invoice saved. Find it under "All Invoices".');
+}
+function loadInvoice(id){
+  const all = loadAll();
+  const r = all.find(x=>x.id===id);
+  if(!r) return;
+  editingId = r.id;
+  document.getElementById('f-fromName').value = r.fromName||'';
+  document.getElementById('f-fromEmail').value = r.fromEmail||'';
+  document.getElementById('f-fromAddr').value = r.fromAddr||'';
+  document.getElementById('f-toName').value = r.toName||'';
+  document.getElementById('f-toEmail').value = r.toEmail||'';
+  document.getElementById('f-toAddr').value = r.toAddr||'';
+  document.getElementById('f-number').value = r.number||'';
+  document.getElementById('f-issue').value = r.issue||'';
+  document.getElementById('f-due').value = r.due||'';
+  document.getElementById('f-status').value = r.status||'unpaid';
+  document.getElementById('f-tax').value = r.tax||0;
+  document.getElementById('f-discount').value = r.discount||0;
+  document.getElementById('f-currency').value = r.currency||'$';
+  document.getElementById('f-notes').value = r.notes||'';
+  items = (r.items||[]).map(i=>({...i, id: uid()}));
+  renderItems();
+  switchView('editor');
+}
+function deleteInvoice(id, evt){
+  if(evt) evt.stopPropagation();
+  if(!confirm('Delete this invoice? This cannot be undone.')) return;
+  saveAll(loadAll().filter(r=>r.id!==id));
+  renderLibrary();
+}
+function duplicateInvoice(id, evt){
+  if(evt) evt.stopPropagation();
+  const all = loadAll();
+  const r = all.find(x=>x.id===id);
+  if(!r) return;
+  const copy = {...r, id:uid(), number: r.number+'-copy', savedAt:new Date().toISOString()};
+  all.push(copy);
+  saveAll(all);
+  renderLibrary();
+}
+
+/* ---------------- library: search / filter / sort ---------------- */
+function renderLibrary(){
+  const all = loadAll();
+  const q = (document.getElementById('search-input').value||'').toLowerCase().trim();
+  const statusFilter = document.getElementById('filter-status').value;
+  const sortBy = document.getElementById('sort-by').value;
+
+  let list = all.filter(r=>{
+    const matchesQ = !q ||
+      (r.toName||'').toLowerCase().includes(q) ||
+      (r.number||'').toLowerCase().includes(q) ||
+      String(r.total||'').includes(q);
+    const matchesStatus = statusFilter==='all' || r.status===statusFilter;
+    return matchesQ && matchesStatus;
+  });
+
+  list.sort((a,b)=>{
+    if(sortBy==='date-desc') return (b.issue||'').localeCompare(a.issue||'');
+    if(sortBy==='date-asc') return (a.issue||'').localeCompare(b.issue||'');
+    if(sortBy==='amount-desc') return (b.total||0)-(a.total||0);
+    if(sortBy==='amount-asc') return (a.total||0)-(b.total||0);
+    if(sortBy==='client-az') return (a.toName||'').localeCompare(b.toName||'');
+    return 0;
+  });
+
+  // stats
+  const stat = (label, value) => `<div class="stat"><div class="n mono">${value}</div><div class="l">${label}</div></div>`;
+  const totalOut = all.filter(r=>r.status!=='paid').reduce((s,r)=>s+(r.total||0),0);
+  document.getElementById('stat-strip').innerHTML =
+    stat('Total invoices', all.length) +
+    stat('Unpaid / overdue', all.filter(r=>r.status!=='paid').length) +
+    stat('Outstanding', (all[0]?all[0].currency:'$') + fmt(totalOut)) +
+    stat('Paid', all.filter(r=>r.status==='paid').length);
+
+  const body = document.getElementById('lib-body');
+  const emptyEl = document.getElementById('lib-empty');
+  if(list.length===0){
+    body.innerHTML = '';
+    emptyEl.innerHTML = `<div class="empty-state"><div class="glyph">🧾</div>
+      ${all.length===0 ? 'No invoices yet. Create your first one from the "New Invoice" tab.' : 'No invoices match your search or filter.'}</div>`;
+    return;
+  }
+  emptyEl.innerHTML = '';
+  body.innerHTML = list.map(r=>`
+    <tr onclick="loadInvoice('${r.id}')">
+      <td class="num">${escapeHtml(r.number)}</td>
+      <td>${escapeHtml(r.toName)||'—'}</td>
+      <td>${r.issue||'—'}</td>
+      <td>${r.due||'—'}</td>
+      <td><span class="badge ${r.status}">${r.status}</span></td>
+      <td class="num" style="text-align:right;">${r.currency||'$'}${fmt(r.total)}</td>
+      <td class="no-print">
+        <div class="row-actions">
+          <button class="icon-btn" title="Duplicate" onclick="duplicateInvoice('${r.id}', event)">⧉</button>
+          <button class="icon-btn" title="Delete" onclick="deleteInvoice('${r.id}', event)">🗑</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+/* ---------------- table header sort-by-click (extra filterability) ---------------- */
+document.querySelectorAll('.lib-table thead th').forEach((th, idx)=>{
+  const map = {2:'date', 5:'amount', 1:'client'};
+  if(map[idx]){
+    th.addEventListener('click', ()=>{
+      const sel = document.getElementById('sort-by');
+      if(map[idx]==='client'){ sel.value='client-az'; }
+      else {
+        const cur = sel.value;
+        sel.value = cur === map[idx]+'-desc' ? map[idx]+'-asc' : map[idx]+'-desc';
+      }
+      renderLibrary();
+    });
+  }
+});
+
+/* ---------------- init ---------------- */
+newInvoice();
+</script>
+
+</body>
+</html>
